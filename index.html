@@ -32,6 +32,8 @@
             },
         }
     </script>
+    <!-- Google Maps API: YOUR_GOOGLE_MAPS_API_KEY를 실제 키로 변경하세요 -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAk-KZhkLdLLKehnHJcu0_8kfWerqqVdeA&libraries=places&callback=initMap" async defer></script>
 </head>
 <body class="bg-background-light dark:bg-background-dark font-display antialiased text-text-main dark:text-gray-100 min-h-screen flex flex-col">
 
@@ -65,7 +67,10 @@
                             <span class="material-symbols-outlined text-lg">calendar_month</span>
                             <span id="trip-day-count">Day 3 of 7</span>
                         </div>
-                        <h1 id="trip-title" class="text-3xl md:text-4xl font-bold text-text-main dark:text-white leading-tight">Exploring Arashiyama</h1>
+                        <div class="flex items-center gap-3">
+                            <h1 id="trip-title" class="text-3xl md:text-4xl font-bold text-text-main dark:text-white leading-tight">Exploring Arashiyama</h1>
+                            <button id="set-location-btn" onclick="openLocationSearch()" class="hidden text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 px-3 py-1 rounded-full flex items-center gap-1"><span class="material-symbols-outlined text-sm">search</span> Set Location</button>
+                        </div>
                         <p id="trip-date-info" class="text-text-muted dark:text-gray-400 font-medium">Kyoto Spring Trip • April 12, 2024</p>
                     </div>
                 </div>
@@ -133,6 +138,60 @@
         </div>
     </div>
 
+    <!-- Add/Edit Item Modal -->
+    <dialog id="item-modal" class="bg-white dark:bg-card-dark rounded-xl shadow-2xl p-0 w-full max-w-2xl backdrop:bg-black/50">
+        <div class="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
+            <h3 class="text-xl font-bold text-text-main dark:text-white">Add New Activity</h3>
+            <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600"><span class="material-symbols-outlined">close</span></button>
+        </div>
+        <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="col-span-2">
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Search Place (Google Maps)</label>
+                <div class="relative">
+                    <span class="absolute left-3 top-2.5 text-gray-400 material-symbols-outlined text-lg">search</span>
+                    <input id="place-search" type="text" class="w-full pl-10 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-gray-50 dark:bg-gray-800 focus:ring-2 focus:ring-primary outline-none" placeholder="Search for a restaurant, museum, etc...">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Category</label>
+                <select id="item-category" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800" onchange="updateIconPreview()">
+                    <option value="meal">Meal (Restaurant/Cafe)</option>
+                    <option value="transit">Transit (Train/Bus)</option>
+                    <option value="culture">Culture (Museum/History)</option>
+                    <option value="sightseeing">Sightseeing (Park/Photo)</option>
+                    <option value="shopping">Shopping</option>
+                    <option value="accommodation">Accommodation</option>
+                    <option value="custom">Custom</option>
+                </select>
+            </div>
+            
+            <div>
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Time</label>
+                <input id="item-time" type="text" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800" placeholder="e.g. 10:00 AM">
+            </div>
+
+            <div class="col-span-2">
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Place Name</label>
+                <input id="item-title" type="text" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 font-bold">
+            </div>
+
+            <div class="col-span-2">
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Location / Address</label>
+                <input id="item-location" type="text" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800">
+            </div>
+
+            <div class="col-span-2">
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Notes / Features / Phone</label>
+                <textarea id="item-notes" class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 h-20" placeholder="e.g. Famous for matcha ice cream. Phone: +81..."></textarea>
+            </div>
+        </div>
+        <div class="p-6 border-t border-gray-100 dark:border-gray-700 flex justify-end gap-3">
+            <button onclick="closeModal()" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+            <button onclick="saveNewItem()" class="px-6 py-2 bg-primary text-white font-bold rounded-lg hover:bg-blue-600 shadow-lg">Add to Itinerary</button>
+        </div>
+    </dialog>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js";
@@ -167,6 +226,7 @@
                 title: "Exploring Arashiyama",
                 subInfo: "Kyoto Spring Trip • April 12, 2024",
                 mapImage: "https://via.placeholder.com/600x400", // 지도 배경 이미지
+                lat: 35.0116, lng: 135.6688, // 기본 좌표 (Arashiyama)
                 weather: { temp: "22°C", desc: "Sunny, Clear sky" },
                 budget: "$45.00",
                 note: "Don't forget to charge the camera batteries. The bamboo grove is best photographed early in the morning to avoid crowds."
@@ -273,25 +333,27 @@
         });
 
         window.toggleEdit = async function() {
-            if (!currentUser) {
-                alert("Please login to save changes.");
-                return;
-            }
-
             isEditing = !isEditing;
             const btn = document.getElementById('edit-mode-btn');
+            const setLocBtn = document.getElementById('set-location-btn');
+
             if (isEditing) {
                 btn.innerText = "Save Changes";
                 btn.classList.add("bg-primary", "text-white");
                 btn.classList.remove("text-primary");
+                setLocBtn.classList.remove('hidden');
             } else {
-                btn.innerText = "Saving...";
-                // Firebase 저장
-                await setDoc(doc(db, "trips", currentUser.uid), travelData);
-                
+                // 저장 로직
+                if (currentUser) {
+                    btn.innerText = "Saving...";
+                    await setDoc(doc(db, "trips", currentUser.uid), travelData);
+                } else {
+                    alert("Changes saved locally (Login to sync with cloud).");
+                }
                 btn.innerText = "Edit Mode";
                 btn.classList.remove("bg-primary", "text-white");
                 btn.classList.add("text-primary");
+                setLocBtn.classList.add('hidden');
             }
             renderItinerary();
         };
@@ -309,17 +371,105 @@
             travelData.timeline[index][key] = value;
         };
 
+        // ==========================================
+        // [Google Maps & Modal Logic]
+        // ==========================================
+        let autocomplete;
+        let searchMode = 'item'; // 'item' or 'trip'
+
+        window.initMap = function() {
+            const input = document.getElementById("place-search");
+            if(!input) return;
+            
+            const options = {
+                fields: ["formatted_address", "geometry", "name", "formatted_phone_number"],
+                strictBounds: false,
+            };
+            
+            autocomplete = new google.maps.places.Autocomplete(input, options);
+            autocomplete.addListener("place_changed", fillInAddress);
+        }
+
+        function fillInAddress() {
+            const place = autocomplete.getPlace();
+            if (!place.geometry || !place.geometry.location) return;
+
+            if (searchMode === 'trip') {
+                // 메인 여행지 설정
+                updateMeta('title', place.name);
+                updateMeta('subInfo', place.formatted_address);
+                travelData.meta.lat = place.geometry.location.lat();
+                travelData.meta.lng = place.geometry.location.lng();
+                fetchWeather(travelData.meta.lat, travelData.meta.lng);
+                renderItinerary();
+                document.getElementById('item-modal').close();
+            } else {
+                // 타임라인 아이템 설정
+                document.getElementById('item-title').value = place.name;
+                document.getElementById('item-location').value = place.formatted_address;
+                
+                let notes = "";
+                if (place.formatted_phone_number) notes += `Phone: ${place.formatted_phone_number}\n`;
+                document.getElementById('item-notes').value = notes;
+            }
+        }
+
+        window.openLocationSearch = function() {
+            searchMode = 'trip';
+            const modal = document.getElementById('item-modal');
+            modal.showModal();
+            document.getElementById('place-search').value = "";
+            document.getElementById('place-search').focus();
+        }
+
         window.addTimelineItem = function() {
-            travelData.timeline.push({
-                time: "12:00 PM",
-                title: "New Activity",
-                location: "Location",
-                icon: "place",
-                tag: "",
-                image: null
-            });
-            renderItinerary();
+            searchMode = 'item';
+            const modal = document.getElementById('item-modal');
+            // 초기화
+            document.getElementById('place-search').value = "";
+            document.getElementById('item-title').value = "";
+            document.getElementById('item-location').value = "";
+            document.getElementById('item-time').value = "12:00 PM";
+            document.getElementById('item-notes').value = "";
+            modal.showModal();
         };
+
+        window.closeModal = function() {
+            document.getElementById('item-modal').close();
+        }
+
+        window.saveNewItem = function() {
+            const category = document.getElementById('item-category').value;
+            let icon = "place";
+            let tag = "";
+            
+            // 카테고리별 아이콘 매핑
+            const icons = {
+                meal: "restaurant",
+                transit: "train",
+                culture: "museum",
+                sightseeing: "photo_camera",
+                shopping: "shopping_bag",
+                accommodation: "hotel",
+                custom: "star"
+            };
+            icon = icons[category] || "place";
+
+            const newItem = {
+                time: document.getElementById('item-time').value,
+                title: document.getElementById('item-title').value || "New Activity",
+                location: document.getElementById('item-location').value || "Location",
+                icon: icon,
+                tag: category.toUpperCase(),
+                image: null,
+                isTransit: category === 'transit',
+                note: document.getElementById('item-notes').value
+            };
+
+            travelData.timeline.push(newItem);
+            renderItinerary();
+            closeModal();
+        }
 
         window.deleteTimelineItem = function(index) {
             if (confirm("Delete this item?")) {
@@ -327,6 +477,30 @@
                 renderItinerary();
             }
         };
+
+        // Open-Meteo Weather API
+        async function fetchWeather(lat, lng) {
+            if (!lat || !lng) return;
+            try {
+                const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true`);
+                const data = await res.json();
+                const temp = data.current_weather.temperature;
+                const code = data.current_weather.weathercode;
+                
+                // 간단한 날씨 코드 매핑
+                let desc = "Clear sky";
+                if (code > 0 && code < 3) desc = "Partly cloudy";
+                else if (code >= 3 && code < 50) desc = "Overcast/Fog";
+                else if (code >= 50 && code < 80) desc = "Rainy";
+                else if (code >= 80) desc = "Showers/Snow";
+
+                updateMeta('weather.temp', `${temp}°C`);
+                updateMeta('weather.desc', desc);
+                renderItinerary();
+            } catch (e) {
+                console.error("Weather fetch failed", e);
+            }
+        }
 
         // ==========================================
         // [로직 구역] 아래는 건드리지 않아도 됩니다 (자동 렌더링)
@@ -340,6 +514,7 @@
                 // Edit Mode: Meta Inputs
                 document.getElementById('trip-day-count').innerHTML = `<input type="text" class="bg-gray-50 border border-gray-300 rounded px-2 py-1 text-sm w-full" value="${travelData.meta.dayCount}" onchange="updateMeta('dayCount', this.value)">`;
                 document.getElementById('trip-title').innerHTML = `<input type="text" class="bg-gray-50 border border-gray-300 rounded px-2 py-1 text-2xl font-bold w-full" value="${travelData.meta.title}" onchange="updateMeta('title', this.value)">`;
+                // SubInfo is updated via Set Location button mostly, but keep input
                 document.getElementById('trip-date-info').innerHTML = `<input type="text" class="bg-gray-50 border border-gray-300 rounded px-2 py-1 text-sm w-full" value="${travelData.meta.subInfo}" onchange="updateMeta('subInfo', this.value)">`;
                 
                 document.getElementById('weather-temp').innerHTML = `<input type="text" class="bg-gray-50 border border-gray-300 rounded px-2 py-1 text-lg w-full" value="${travelData.meta.weather.temp}" onchange="updateMeta('weather.temp', this.value)">`;
@@ -409,6 +584,10 @@
                                 <input type="text" class="w-full border border-gray-300 rounded px-2 py-1 text-sm" value="${item.location}" onchange="updateTimeline(${index}, 'location', this.value)">
                             </div>
                             <div class="col-span-2">
+                                <label class="text-xs text-gray-500">Notes / Features</label>
+                                <textarea class="w-full border border-gray-300 rounded px-2 py-1 text-sm" onchange="updateTimeline(${index}, 'note', this.value)">${item.note || ''}</textarea>
+                            </div>
+                            <div class="col-span-2">
                                 <label class="text-xs text-gray-500">Image URL (Optional)</label>
                                 <input type="text" class="w-full border border-gray-300 rounded px-2 py-1 text-sm" value="${item.image || ''}" placeholder="https://..." onchange="updateTimeline(${index}, 'image', this.value)">
                             </div>
@@ -471,6 +650,10 @@
                                 <span class="material-symbols-outlined text-[18px]">schedule</span>
                                 ${item.time}
                             </div>
+                            ${item.note ? `
+                            <div class="text-xs text-gray-500 flex items-center gap-1">
+                                <span class="material-symbols-outlined text-[14px]">info</span> ${item.note.substring(0, 30)}${item.note.length > 30 ? '...' : ''}
+                            </div>` : ''}
                         </div>
                     </div>`;
                 }
@@ -480,7 +663,7 @@
             if (isEditing) {
                 html += `
                 <div class="col-span-2 flex justify-center pt-4 pb-8">
-                    <button onclick="addTimelineItem()" class="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-full font-bold shadow-lg hover:bg-blue-600 transition-colors">
+                    <button onclick="addTimelineItem()" class="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-full font-bold shadow-lg hover:bg-blue-600 transition-colors transform hover:scale-105">
                         <span class="material-symbols-outlined">add</span> Add New Item
                     </button>
                 </div>`;
