@@ -32,8 +32,12 @@
             },
         }
     </script>
-    <!-- Google Maps API: YOUR_GOOGLE_MAPS_API_KEY를 실제 키로 변경하세요 -->
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAk-KZhkLdLLKehnHJcu0_8kfWerqqVdeA&libraries=places&callback=initMap" async defer></script>
+    <style>
+        /* Google 자동완성 목록이 모달 위로 오도록 설정 */
+        .pac-container {
+            z-index: 10000 !important;
+        }
+    </style>
 </head>
 <body class="bg-background-light dark:bg-background-dark font-display antialiased text-text-main dark:text-gray-100 min-h-screen flex flex-col">
 
@@ -678,7 +682,12 @@
             listEl.innerHTML = html;
         }
 
-        // 실행
+        // Google Maps API 동적 로드 (initMap 함수가 정의된 후 실행되도록 보장)
+        const script = document.createElement('script');
+        script.src = "https://maps.googleapis.com/maps/api/js?key=AIzaSyAk-KZhkLdLLKehnHJcu0_8kfWerqqVdeA&libraries=places&callback=initMap";
+        script.async = true;
+        document.head.appendChild(script);
+
     </script>
 </body>
 </html>
