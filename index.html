@@ -44,7 +44,13 @@
                 <h2 class="text-text-main dark:text-white text-lg font-bold leading-tight tracking-[-0.015em]">TravelPlanner</h2>
             </div>
             <div class="flex flex-1 justify-end gap-8 items-center">
-                <div id="user-avatar" class="bg-center bg-no-repeat bg-cover rounded-full size-10 ring-2 ring-gray-100 dark:ring-gray-700"></div>
+                <button id="edit-mode-btn" onclick="toggleEdit()" class="font-medium text-sm text-primary hover:bg-blue-50 dark:hover:bg-gray-800 px-4 py-2 rounded-lg transition-colors">Edit Mode</button>
+                <!-- Auth UI -->
+                <button id="login-btn" onclick="login()" class="font-medium text-sm bg-primary text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors shadow-sm">Google Login</button>
+                <div id="user-profile" class="hidden flex items-center gap-3">
+                    <div id="user-avatar" class="bg-center bg-no-repeat bg-cover rounded-full size-10 ring-2 ring-gray-100 dark:ring-gray-700 cursor-pointer" title="User Profile"></div>
+                    <button onclick="logout()" class="text-xs text-text-muted hover:text-red-500 font-medium underline decoration-transparent hover:decoration-red-500 transition-all">Logout</button>
+                </div>
             </div>
         </div>
     </header>
@@ -127,11 +133,34 @@
         </div>
     </div>
 
-    <script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js";
+        import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDvXA_KqMY9Dstafrp85aPCUyHwieHEG14",
+            authDomain: "trip-b30df.firebaseapp.com",
+            projectId: "trip-b30df",
+            storageBucket: "trip-b30df.firebasestorage.app",
+            messagingSenderId: "612828790186",
+            appId: "1:612828790186:web:5f55549ad8d246d2e6bfd3",
+            measurementId: "G-1GPRVDN6S3"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        const provider = new GoogleAuthProvider();
+        let currentUser = null;
+
         // ==========================================
-        // [수정 구역] 여행 일정 데이터를 여기서 수정하세요!
+        // [수정 구역] 데이터 및 로직
         // ==========================================
-        const travelData = {
+        const defaultTravelData = {
             meta: {
                 userImage: "https://via.placeholder.com/100", // 사용자 프로필 사진
                 dayCount: "Day 3 of 7",
@@ -181,20 +210,153 @@
             ]
         };
 
+        let travelData = JSON.parse(JSON.stringify(defaultTravelData));
+
+        // Firestore에서 데이터 불러오기
+        async function loadData(uid) {
+            try {
+                const docRef = doc(db, "trips", uid);
+                const docSnap = await getDoc(docRef);
+                
+                if (docSnap.exists()) {
+                    travelData = docSnap.data();
+                } else {
+                    // 데이터가 없으면 현재 기본값을 저장
+                    await setDoc(docRef, travelData);
+                }
+                renderItinerary();
+            } catch (error) {
+                console.error("Error loading data:", error);
+            }
+        }
+
+        let isEditing = false;
+
+        // Google Login
+        window.login = async function() {
+            try {
+                await signInWithPopup(auth, provider);
+            } catch (error) {
+                console.error("Login failed", error);
+                alert("Login failed: " + error.message);
+            }
+        };
+
+        // Logout
+        window.logout = async function() {
+            try {
+                await signOut(auth);
+            } catch (error) {
+                console.error("Logout failed", error);
+            }
+        };
+
+        // Auth State Observer
+        onAuthStateChanged(auth, (user) => {
+            currentUser = user;
+            const loginBtn = document.getElementById('login-btn');
+            const userProfile = document.getElementById('user-profile');
+
+            if (user) {
+                // 로그인 상태
+                loginBtn.classList.add('hidden');
+                userProfile.classList.remove('hidden');
+                loadData(user.uid);
+            } else {
+                // 로그아웃 상태
+                loginBtn.classList.remove('hidden');
+                userProfile.classList.add('hidden');
+                // 기본 데이터로 초기화
+                travelData = JSON.parse(JSON.stringify(defaultTravelData));
+                renderItinerary();
+            }
+        });
+
+        window.toggleEdit = async function() {
+            if (!currentUser) {
+                alert("Please login to save changes.");
+                return;
+            }
+
+            isEditing = !isEditing;
+            const btn = document.getElementById('edit-mode-btn');
+            if (isEditing) {
+                btn.innerText = "Save Changes";
+                btn.classList.add("bg-primary", "text-white");
+                btn.classList.remove("text-primary");
+            } else {
+                btn.innerText = "Saving...";
+                // Firebase 저장
+                await setDoc(doc(db, "trips", currentUser.uid), travelData);
+                
+                btn.innerText = "Edit Mode";
+                btn.classList.remove("bg-primary", "text-white");
+                btn.classList.add("text-primary");
+            }
+            renderItinerary();
+        };
+
+        window.updateMeta = function(key, value) {
+            if (key.includes('.')) {
+                const [p, c] = key.split('.');
+                travelData.meta[p][c] = value;
+            } else {
+                travelData.meta[key] = value;
+            }
+        };
+
+        window.updateTimeline = function(index, key, value) {
+            travelData.timeline[index][key] = value;
+        };
+
+        window.addTimelineItem = function() {
+            travelData.timeline.push({
+                time: "12:00 PM",
+                title: "New Activity",
+                location: "Location",
+                icon: "place",
+                tag: "",
+                image: null
+            });
+            renderItinerary();
+        };
+
+        window.deleteTimelineItem = function(index) {
+            if (confirm("Delete this item?")) {
+                travelData.timeline.splice(index, 1);
+                renderItinerary();
+            }
+        };
+
         // ==========================================
         // [로직 구역] 아래는 건드리지 않아도 됩니다 (자동 렌더링)
         // ==========================================
         function renderItinerary() {
             // 1. 메타 정보 채우기
             document.getElementById('user-avatar').style.backgroundImage = `url('${travelData.meta.userImage}')`;
-            document.getElementById('trip-day-count').innerText = travelData.meta.dayCount;
-            document.getElementById('trip-title').innerText = travelData.meta.title;
-            document.getElementById('trip-date-info').innerText = travelData.meta.subInfo;
             document.getElementById('map-bg').style.backgroundImage = `url('${travelData.meta.mapImage}')`;
-            document.getElementById('weather-temp').innerText = travelData.meta.weather.temp;
-            document.getElementById('weather-desc').innerText = travelData.meta.weather.desc;
-            document.getElementById('budget-amount').innerText = travelData.meta.budget;
-            document.getElementById('daily-note').innerText = travelData.meta.note;
+
+            if (isEditing) {
+                // Edit Mode: Meta Inputs
+                document.getElementById('trip-day-count').innerHTML = `<input type="text" class="bg-gray-50 border border-gray-300 rounded px-2 py-1 text-sm w-full" value="${travelData.meta.dayCount}" onchange="updateMeta('dayCount', this.value)">`;
+                document.getElementById('trip-title').innerHTML = `<input type="text" class="bg-gray-50 border border-gray-300 rounded px-2 py-1 text-2xl font-bold w-full" value="${travelData.meta.title}" onchange="updateMeta('title', this.value)">`;
+                document.getElementById('trip-date-info').innerHTML = `<input type="text" class="bg-gray-50 border border-gray-300 rounded px-2 py-1 text-sm w-full" value="${travelData.meta.subInfo}" onchange="updateMeta('subInfo', this.value)">`;
+                
+                document.getElementById('weather-temp').innerHTML = `<input type="text" class="bg-gray-50 border border-gray-300 rounded px-2 py-1 text-lg w-full" value="${travelData.meta.weather.temp}" onchange="updateMeta('weather.temp', this.value)">`;
+                document.getElementById('weather-desc').innerHTML = `<input type="text" class="bg-gray-50 border border-gray-300 rounded px-2 py-1 text-xs w-full" value="${travelData.meta.weather.desc}" onchange="updateMeta('weather.desc', this.value)">`;
+                
+                document.getElementById('budget-amount').innerHTML = `<input type="text" class="bg-gray-50 border border-gray-300 rounded px-2 py-1 text-lg w-full" value="${travelData.meta.budget}" onchange="updateMeta('budget', this.value)">`;
+                document.getElementById('daily-note').innerHTML = `<textarea class="bg-gray-50 border border-gray-300 rounded px-2 py-1 text-sm w-full h-24" onchange="updateMeta('note', this.value)">${travelData.meta.note}</textarea>`;
+            } else {
+                // View Mode: Text
+                document.getElementById('trip-day-count').innerText = travelData.meta.dayCount;
+                document.getElementById('trip-title').innerText = travelData.meta.title;
+                document.getElementById('trip-date-info').innerText = travelData.meta.subInfo;
+                document.getElementById('weather-temp').innerText = travelData.meta.weather.temp;
+                document.getElementById('weather-desc').innerText = travelData.meta.weather.desc;
+                document.getElementById('budget-amount').innerText = travelData.meta.budget;
+                document.getElementById('daily-note').innerText = travelData.meta.note;
+            }
 
             // 2. 타임라인 리스트 만들기
             const listEl = document.getElementById('timeline-list');
@@ -221,8 +383,43 @@
                 <div class="pb-8 pt-1">
                 `;
 
-                // 카드 내용 (이미지형 vs 일반형 vs 이동형)
-                if (item.image) {
+                if (isEditing) {
+                    // Edit Mode Card
+                    html += `
+                    <div class="bg-white dark:bg-card-dark rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700 flex flex-col gap-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-bold text-primary uppercase">Item ${index + 1}</span>
+                            <button onclick="deleteTimelineItem(${index})" class="text-red-500 hover:bg-red-50 p-1 rounded"><span class="material-symbols-outlined text-lg">delete</span></button>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="col-span-1">
+                                <label class="text-xs text-gray-500">Time</label>
+                                <input type="text" class="w-full border border-gray-300 rounded px-2 py-1 text-sm" value="${item.time}" onchange="updateTimeline(${index}, 'time', this.value)">
+                            </div>
+                            <div class="col-span-1">
+                                <label class="text-xs text-gray-500">Icon (Material Name)</label>
+                                <input type="text" class="w-full border border-gray-300 rounded px-2 py-1 text-sm" value="${item.icon}" onchange="updateTimeline(${index}, 'icon', this.value)">
+                            </div>
+                            <div class="col-span-2">
+                                <label class="text-xs text-gray-500">Title</label>
+                                <input type="text" class="w-full border border-gray-300 rounded px-2 py-1 text-sm font-bold" value="${item.title}" onchange="updateTimeline(${index}, 'title', this.value)">
+                            </div>
+                            <div class="col-span-2">
+                                <label class="text-xs text-gray-500">Location</label>
+                                <input type="text" class="w-full border border-gray-300 rounded px-2 py-1 text-sm" value="${item.location}" onchange="updateTimeline(${index}, 'location', this.value)">
+                            </div>
+                            <div class="col-span-2">
+                                <label class="text-xs text-gray-500">Image URL (Optional)</label>
+                                <input type="text" class="w-full border border-gray-300 rounded px-2 py-1 text-sm" value="${item.image || ''}" placeholder="https://..." onchange="updateTimeline(${index}, 'image', this.value)">
+                            </div>
+                            <div class="col-span-2 flex items-center gap-2">
+                                <input type="checkbox" id="transit-${index}" ${item.isTransit ? 'checked' : ''} onchange="updateTimeline(${index}, 'isTransit', this.checked)">
+                                <label for="transit-${index}" class="text-sm text-gray-700 dark:text-gray-300">Is Transit?</label>
+                            </div>
+                        </div>
+                    </div>
+                    `;
+                } else if (item.image) {
                     // 이미지 카드
                     html += `
                     <div class="bg-card-light dark:bg-card-dark rounded-xl overflow-hidden shadow-sm border border-gray-100 dark:border-gray-800 hover:shadow-md transition-shadow">
@@ -280,17 +477,25 @@
                 html += `</div>`;
             });
             
+            if (isEditing) {
+                html += `
+                <div class="col-span-2 flex justify-center pt-4 pb-8">
+                    <button onclick="addTimelineItem()" class="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-full font-bold shadow-lg hover:bg-blue-600 transition-colors">
+                        <span class="material-symbols-outlined">add</span> Add New Item
+                    </button>
+                </div>`;
+            } else {
             // 엔딩 서클
             html += `
             <div class="flex flex-col items-center pt-2">
                 <div class="w-3 h-3 rounded-full bg-gray-300 dark:bg-gray-600"></div>
             </div>`;
+            }
 
             listEl.innerHTML = html;
         }
 
         // 실행
-        window.onload = renderItinerary;
     </script>
 </body>
 </html>
